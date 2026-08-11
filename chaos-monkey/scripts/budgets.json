@@ -1,0 +1,44 @@
+{
+  "_comment": "Per route ceilings, asserted in CI. Fill from measurement, not instinct. Ratchet down when a route improves; loosening requires its own reviewed commit with a reason.",
+
+  "defaults": { "maxQueries": 10, "maxMs": 1000, "maxPayloadKb": 500 },
+
+  "routes": {
+    "/": { "maxQueries": 4, "maxMs": 400, "maxPayloadKb": 200 },
+    "/dashboard": { "maxQueries": 8, "maxMs": 900, "maxPayloadKb": 350 },
+    "/projects": { "maxQueries": 6, "maxMs": 800, "maxPayloadKb": 250 },
+    "/projects/:id": { "maxQueries": 12, "maxMs": 1200, "maxPayloadKb": 400 },
+    "/projects/:id/selections": { "maxQueries": 10, "maxMs": 1000, "maxPayloadKb": 400 },
+    "/change-orders": { "maxQueries": 6, "maxMs": 800, "maxPayloadKb": 250 },
+    "/change-orders/:id": { "maxQueries": 9, "maxMs": 900, "maxPayloadKb": 200 },
+    "/settings": { "maxQueries": 5, "maxMs": 600, "maxPayloadKb": 150 }
+  },
+
+  "global": {
+    "maxConsoleErrors": 0,
+    "max5xx": 0,
+    "maxQueriesGrowthRatio": 1.2,
+    "_growthComment": "Query count at large scale seed divided by query count at small scale seed. Anything above 1.2 means query count is growing with row count, which is the N+1 signature. This single assertion catches N+1 regressions nobody wrote a specific test for."
+  },
+
+  "limits": {
+    "_comment": "Proposed enforcement limits. Verify each is actually enforced server side; a limit that only exists in the UI is not a limit.",
+    "maxPageSize": 100,
+    "maxOffset": 10000,
+    "maxNestingDepth": 3,
+    "maxInClauseSize": 100,
+    "maxDateRangeDays": 730,
+    "minSearchLength": 2,
+    "maxExportRows": 50000,
+    "statementTimeoutMs": 5000,
+    "requestTimeoutMs": 30000,
+    "rateLimitReadPerMin": 100,
+    "rateLimitWritePerMin": 30,
+    "rateLimitExpensivePerMin": 5,
+    "rateLimitAuthPerMin": 5,
+    "maxConcurrentRequestsPerUser": 10,
+    "maxUploadMb": 25,
+    "maxFilesPerBatch": 20,
+    "maxJobsPerUser": 3
+  }
+}

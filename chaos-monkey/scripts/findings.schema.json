@@ -1,0 +1,146 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "chaos-monkey findings",
+  "description": "Machine readable findings with executable acceptance criteria. This file is the source of truth that drives the remediation loop; findings.md is generated from it.",
+  "type": "object",
+  "required": ["run", "findings"],
+  "properties": {
+    "run": {
+      "type": "object",
+      "required": ["id", "mode"],
+      "properties": {
+        "id": { "type": "string" },
+        "mode": { "enum": ["local", "staging", "production"] },
+        "baseUrl": { "type": "string" },
+        "phases": { "type": "array", "items": { "type": "string" } },
+        "scales": { "type": "array", "items": { "enum": ["small", "medium", "large"] } },
+        "startedAt": { "type": "string" },
+        "coverage": {
+          "type": "object",
+          "properties": {
+            "routesVisited": { "type": "integer" },
+            "routesUnreached": { "type": "array", "items": { "type": "string" } },
+            "notTested": { "type": "array", "items": { "type": "string" },
+              "description": "Surfaces skipped, with reasons. Honest gaps beat implied coverage." }
+          }
+        },
+        "residue": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Production only. Synthetic artifacts that could not be cleaned up, such as sent emails or audit entries."
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "severity", "title", "surface", "evidence", "rootCause", "remediation", "acceptanceCriteria", "status"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^CM-[0-9]{3}$" },
+          "severity": { "enum": ["S1", "S2", "S3", "S4"] },
+          "title": { "type": "string", "description": "States the impact, not the action taken" },
+          "surface": { "type": "string" },
+          "category": {
+            "enum": ["tenant-leak", "n-plus-1", "amplification", "missing-limit", "rate-limit",
+                     "not-found", "dead-control", "state-machine", "race", "money",
+                     "input-validation", "file-upload", "error-handling", "other"]
+          },
+          "foundBy": { "type": "string", "description": "phase name, or monkey seed" },
+          "reproducible": { "type": "string", "description": "e.g. 5/5" },
+          "evidence": {
+            "type": "object",
+            "required": ["repro"],
+            "properties": {
+              "repro": { "type": "array", "items": { "type": "string" },
+                "description": "Literal steps with the exact values used" },
+              "expected": { "type": "string" },
+              "actual": { "type": "string" },
+              "measured": {
+                "type": "object",
+                "properties": {
+                  "queryCount": { "type": "integer" },
+                  "dbTimeMs": { "type": "number" },
+                  "wallMs": { "type": "number" },
+                  "rowsReturned": { "type": "integer" },
+                  "payloadKb": { "type": "number" },
+                  "scale": { "enum": ["small", "medium", "large"] },
+                  "growthRatio": { "type": "number", "description": "large scale query count / small scale query count" }
+                }
+              },
+              "artifact": { "type": "string", "description": "path to response body, trace, or screenshot" },
+              "invariantBroken": { "type": "string" }
+            }
+          },
+          "impact": { "type": "string", "description": "Blast radius in production terms, not technical terms" },
+          "rootCause": { "type": "string" },
+          "remediation": {
+            "type": "object",
+            "required": ["approach"],
+            "properties": {
+              "approach": { "type": "string" },
+              "files": { "type": "array", "items": { "type": "string" } },
+              "sketch": { "type": "string", "description": "Minimal code direction, not a full patch" },
+              "alsoApplyTo": { "type": "array", "items": { "type": "string" },
+                "description": "Other surfaces with the same root cause. Fixing only where it was found leaves the class open." },
+              "effort": { "enum": ["S", "M", "L"] },
+              "risk": { "type": "string", "description": "What the fix might break, so the positive criteria can target it" },
+              "limitProposed": { "type": "object" },
+              "dependsOn": { "type": "array", "items": { "type": "string" }, "description": "finding IDs" }
+            }
+          },
+          "acceptanceCriteria": {
+            "type": "array",
+            "minItems": 2,
+            "description": "At least one negative and one positive. A fix verified only by the negative is how limit fixes break legitimate use.",
+            "items": {
+              "type": "object",
+              "required": ["id", "type", "statement", "verify"],
+              "properties": {
+                "id": { "type": "string" },
+                "type": { "enum": ["negative", "positive", "systemic", "budget"],
+                  "description": "negative: the bad thing is blocked. positive: legitimate use still works. systemic: the whole class is closed. budget: a measured ceiling holds." },
+                "statement": { "type": "string", "description": "Given / When / Then" },
+                "verify": {
+                  "type": "object",
+                  "required": ["kind"],
+                  "properties": {
+                    "kind": { "enum": ["test", "command", "sql", "http", "manual"] },
+                    "path": { "type": "string" },
+                    "grep": { "type": "string" },
+                    "command": { "type": "string" },
+                    "sql": { "type": "string" },
+                    "request": { "type": "object" },
+                    "expect": { "type": "string" }
+                  }
+                },
+                "status": { "enum": ["pending", "failing-as-expected", "passed", "failed"], "default": "pending" },
+                "lastOutput": { "type": "string" }
+              }
+            }
+          },
+          "regressionTest": {
+            "type": "object",
+            "properties": {
+              "path": { "type": "string" },
+              "tags": { "type": "array", "items": { "type": "string" },
+                "description": "@smoke @isolation @budget @flow @nightly, driving which CI tier runs it" },
+              "written": { "type": "boolean", "default": false },
+              "failedBeforeFix": { "type": "boolean", "default": false,
+                "description": "Must be true before a fix is accepted. A test that passed before the fix is measuring the wrong thing." }
+            }
+          },
+          "status": { "enum": ["open", "fixing", "awaiting-verification", "verified", "reopened", "wont-fix", "escalated"] },
+          "attempts": { "type": "integer", "default": 0, "description": "Escalate to a human at 3" },
+          "attemptLog": { "type": "array", "items": { "type": "string" } },
+          "verifiedAt": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "unverified": {
+      "type": "array",
+      "description": "Hypotheses that could not be reproduced. Kept separate so the findings count stays honest.",
+      "items": { "type": "object", "properties": { "note": { "type": "string" }, "why": { "type": "string" } } }
+    }
+  }
+}
